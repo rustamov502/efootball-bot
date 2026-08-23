@@ -73,7 +73,8 @@ async def show_main_menu(message: Message):
         round_btn_text = "🎲 Juftliklarni tuzish"
 
     buttons = [
-        [KeyboardButton(text="🎮 Turnirga ro'yxatdan o'tish"), KeyboardButton(text="📊 Mening holatim")]
+        [KeyboardButton(text="🎮 Turnirga ro'yxatdan o'tish"), KeyboardButton(text="📊 Mening holatim")],
+        [KeyboardButton(text="📋 Ishtirokchilar ro'yxati")]
     ]
     
     if message.from_user.id == ADMIN_ID:
@@ -83,6 +84,30 @@ async def show_main_menu(message: Message):
         
     keyboard = ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
     await message.answer("🏆 eFootball Chempionat botiga xush kelibsiz! Kerakli bo'limni tanlang:", reply_markup=keyboard)
+
+
+# --- ISHTIROKCHILAR RO'YXATI (HAMMA UCHUN) ---
+@dp.message(F.text == "📋 Ishtirokchilar ro'yxati")
+async def show_participants(message: Message):
+    cursor.execute("SELECT username, is_active, wins FROM players")
+    all_players = cursor.fetchall()
+    
+    if not all_players:
+        await message.answer("Hozircha turnirga hech kim ro'yxatdan o'tmagan! ❌")
+        return
+        
+    text = "📋 **Turnir ishtirokchilari ro'yxati:**\n\n"
+    for idx, p in enumerate(all_players, 1):
+        uname, active, wins = p[0], p[1], p[2]
+        status_icon = "🟢 O'yinda" else "🔴 O'yindan chiqqan"
+        if active == 1:
+            status_icon = "🟢 O'yinda"
+        else:
+            status_icon = "🔴 O'yindan chiqqan"
+            
+        text += f"{idx}. {uname} — {status_icon} (G'alabalar: {wins})\n"
+        
+    await message.answer(text, parse_mode="Markdown")
 
 
 @dp.message(F.text == "🎮 Turnirga ro'yxatdan o'tish")
@@ -166,7 +191,7 @@ async def make_pairs(message: Message):
     players = list(cursor.fetchall())
     
     if len(players) < 2:
-        await message.answer(f"❌ O'yinda juftlik tuzish uchun faol ishtirokchilar yetarli emas! Qolganlar soni: {len(players)} ta")
+        await message.answer(f"❌ Juftlik tuzish uchun faol o'yinchilar yetarli emas! Faol o'yinchilar soni: {len(players)} ta")
         return
     
     cursor.execute("UPDATE settings SET value = 'closed' WHERE key = 'reg_status'")
