@@ -12,6 +12,8 @@ import os
 # --- SOZLAMALAR ---
 TOKEN = "8668357270:AAEIWlNsYhfIKUsgHs7luacZQf3cg_Yc-HA"
 ADMIN_ID = 8451295149
+CHANNEL_USERNAME = "@rustamov_tets"  # Kanalingiz username'si
+CHANNEL_LINK = "https://t.me/rustamov_tets"   # Kanalingiz havolasi
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=TOKEN)
@@ -42,9 +44,47 @@ cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('current_rou
 conn.commit()
 
 
+# --- MAJBURIY OBUNANI TEKSHIRISH ---
+async def check_subscription(user_id: int) -> bool:
+    try:
+        member = await bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
+        if member.status in ["creator", "administrator", "member"]:
+            return True
+        return False
+    except Exception:
+        return False
+
+
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
+    user_id = message.from_user.id
+    
+    # Majburiy obunani tekshirish (Admin uchun majburiy emas)
+    is_subbed = await check_subscription(user_id)
+    if not is_subbed and user_id != ADMIN_ID:
+        builder = InlineKeyboardBuilder()
+        builder.row(InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url=CHANNEL_LINK))
+        builder.row(InlineKeyboardButton(text="✅ Obunani tekshirish", callback_data="check_sub"))
+        await message.answer(
+            "⚠️ Botdan foydalanish uchun avval quyidagi kanalimizga obuna bo'lishingiz shart!",
+            reply_markup=builder.as_markup()
+        )
+        return
+
     await show_main_menu(message)
+
+
+@dp.callback_query(F.data == "check_sub")
+async def process_check_sub(call: CallbackQuery):
+    user_id = call.from_user.id
+    is_subbed = await check_subscription(user_id)
+    
+    if is_subbed or user_id == ADMIN_ID:
+        await call.message.delete()
+        await call.message.answer("Rahmat! Obuna tasdiqlandi ✅")
+        await show_main_menu_call(call.message)
+    else:
+        await call.answer("❌ Siz hali kanalga obuna bo'lmadingiz!", show_alert=True)
 
 
 async def show_main_menu(message: Message):
@@ -62,7 +102,22 @@ async def show_main_menu(message: Message):
     await message.answer("🏆 eFootball Chempionat botiga xush kelibsiz! Kerakli bo'limni tanlang:", reply_markup=keyboard)
 
 
-# --- ISHTIROKCHILAR RO'YXATI (USERNAME BILAN) ---
+async def show_main_menu_call(message: Message):
+    buttons = [
+        [KeyboardButton(text="🎮 Turnirga ro'yxatdan o'tish"), KeyboardButton(text="📊 Mening holatim")],
+        [KeyboardButton(text="📋 Ishtirokchilar ro'yxati")]
+    ]
+    
+    if message.from_user.id == ADMIN_ID:
+        buttons.append([KeyboardButton(text="🔒 Ro'yxatdan o'tishni yopish"), KeyboardButton(text="🔓 Ro'yxatdan o'tishni ochish")])
+        buttons.append([KeyboardButton(text="🎲 Juftliklarni tuzish"), KeyboardButton(text="📢 Hammga xabar yuborish")])
+        buttons.append([KeyboardButton(text="📊 Turnir statistikasi"), KeyboardButton(text="🔄 Turnirni noldan boshlash")])
+        
+    keyboard = ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
+    await message.answer("🏆 eFootball Chempionat botiga xush kelibsiz! Kerakli bo'limni tanlang:", reply_markup=keyboard)
+
+
+# --- ISHTIROKCHILAR RO'YXATI ---
 @dp.message(F.text == "📋 Ishtirokchilar ro'yxati")
 async def show_participants(message: Message):
     cursor.execute("SELECT username, is_active, wins FROM players")
@@ -150,7 +205,7 @@ async def open_registration(message: Message):
     await message.answer("🔓 Ro'yxatdan o'tish ochildi!")
 
 
-# --- JUFTLIKLARNI TUZISH VA USERLARNI CHIQARISH ---
+# --- JUFTLIKLARNI TUZISH (Barcha turlarda userlar chiqishi ta'minlandi) ---
 @dp.message(F.text == "🎲 Juftliklarni tuzish")
 async def make_pairs(message: Message):
     if message.from_user.id != ADMIN_ID:
