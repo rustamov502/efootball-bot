@@ -43,7 +43,7 @@ conn.commit()
 
 
 def get_round_name(player_count):
-    if player_count == 2:
+    if player_count <= 2:
         return "🏆 FINAL"
     elif player_count <= 4:
         return "🔥 Yarim final"
@@ -65,10 +65,10 @@ async def show_main_menu(message: Message):
     res = cursor.fetchone()
     active_count = res[0] if res else 0
 
-    if active_count > 2:
-        round_btn_text = f"🎲 {get_round_name(active_count)} juftliklarini tuzish"
-    elif active_count == 2:
+    if active_count == 2:
         round_btn_text = "🎲 FINAL juftligini tuzish"
+    elif active_count > 2:
+        round_btn_text = f"🎲 {get_round_name(active_count)} juftliklarini tuzish"
     else:
         round_btn_text = "🎲 Juftliklarni tuzish"
 
@@ -86,7 +86,7 @@ async def show_main_menu(message: Message):
     await message.answer("🏆 eFootball Chempionat botiga xush kelibsiz! Kerakli bo'limni tanlang:", reply_markup=keyboard)
 
 
-# --- ISHTIROKCHILAR RO'YXATI (HAMMA UCHUN) ---
+# --- ISHTIROKCHILAR RO'YXATI ---
 @dp.message(F.text == "📋 Ishtirokchilar ro'yxati")
 async def show_participants(message: Message):
     cursor.execute("SELECT username, is_active, wins FROM players")
@@ -99,12 +99,7 @@ async def show_participants(message: Message):
     text = "📋 **Turnir ishtirokchilari ro'yxati:**\n\n"
     for idx, p in enumerate(all_players, 1):
         uname, active, wins = p[0], p[1], p[2]
-        status_icon = "🟢 O'yinda" else "🔴 O'yindan chiqqan"
-        if active == 1:
-            status_icon = "🟢 O'yinda"
-        else:
-            status_icon = "🔴 O'yindan chiqqan"
-            
+        status_icon = "🟢 O'yinda" if active == 1 else "🔴 O'yindan chiqqan"
         text += f"{idx}. {uname} — {status_icon} (G'alabalar: {wins})\n"
         
     await message.answer(text, parse_mode="Markdown")
@@ -179,7 +174,7 @@ async def open_registration(message: Message):
     await message.answer("🔓 Ro'yxatdan o'tish ochildi!")
 
 
-@dp.message(F.text.contains("juftliklarini tuzish"))
+@dp.message(F.text.contains("juftliklarini tuzish") | F.text.contains("FINAL juftligini tuzish"))
 async def make_pairs(message: Message):
     if message.from_user.id != ADMIN_ID:
         return
