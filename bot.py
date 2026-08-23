@@ -12,8 +12,11 @@ import os
 # --- SOZLAMALAR ---
 TOKEN = "8668357270:AAEIWlNsYhfIKUsgHs7luacZQf3cg_Yc-HA"
 ADMIN_ID = 8451295149
-CHANNEL_USERNAME = "@rustamov_tets"  # Kanalingiz username'si
-CHANNEL_LINK = "https://t.me/rustamov_tets"   # Kanalingiz havolasi
+CHANNEL_USERNAME = "@rustamov_tets"  # Majburiy obuna kanali
+CHANNEL_LINK = "https://t.me/rustamov_tets"   # Majburiy obuna havolasi
+
+# Juftliklar tashlanadigan kanal (hozircha o'sha kanalingiz turibdi)
+TOURNAMENT_CHANNEL_ID = "@rustamov_tets" 
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=TOKEN)
@@ -59,7 +62,6 @@ async def check_subscription(user_id: int) -> bool:
 async def cmd_start(message: Message):
     user_id = message.from_user.id
     
-    # Majburiy obunani tekshirish (Admin uchun majburiy emas)
     is_subbed = await check_subscription(user_id)
     if not is_subbed and user_id != ADMIN_ID:
         builder = InlineKeyboardBuilder()
@@ -117,7 +119,6 @@ async def show_main_menu_call(message: Message):
     await message.answer("🏆 eFootball Chempionat botiga xush kelibsiz! Kerakli bo'limni tanlang:", reply_markup=keyboard)
 
 
-# --- ISHTIROKCHILAR RO'YXATI ---
 @dp.message(F.text == "📋 Ishtirokchilar ro'yxati")
 async def show_participants(message: Message):
     cursor.execute("SELECT username, is_active, wins FROM players")
@@ -205,7 +206,7 @@ async def open_registration(message: Message):
     await message.answer("🔓 Ro'yxatdan o'tish ochildi!")
 
 
-# --- JUFTLIKLARNI TUZISH (Barcha turlarda userlar chiqishi ta'minlandi) ---
+# --- JUFTLIKLARNI KANALGA TASHASH VA BOSHQARISH ---
 @dp.message(F.text == "🎲 Juftliklarni tuzish")
 async def make_pairs(message: Message):
     if message.from_user.id != ADMIN_ID:
@@ -227,11 +228,13 @@ async def make_pairs(message: Message):
     round_title = "🏆 FINAL" if len(players) == 2 else f"🔥 {round_num}-tur"
     random.shuffle(players)
     
-    await message.answer(f"⚔️ **{round_title} (Faol o'yinchilar: {len(players)} ta)** ⚔️", parse_mode="Markdown")
+    header_text = f"⚔️ **eFootball Chempionat — {round_title}** ⚔️\n👥 Faol o'yinchilar: {len(players)} ta\n"
+    await bot.send_message(TOURNAMENT_CHANNEL_ID, header_text, parse_mode="Markdown")
+    await message.answer(f"✅ Juftliklar muvaffaqiyatli kanalga (`{TOURNAMENT_CHANNEL_ID}`) yuborildi!")
     
     for i in range(0, len(players) - 1, 2):
-        p1 = players[i]    # p1[0] -> username, p1[1] -> user_id
-        p2 = players[i+1]  # p2[0] -> username, p2[1] -> user_id
+        p1 = players[i]    
+        p2 = players[i+1]  
         
         builder = InlineKeyboardBuilder()
         builder.row(
@@ -240,11 +243,12 @@ async def make_pairs(message: Message):
         )
         
         text = f"🔸 **O'yin juftligi:**\n1️⃣ {p1[0]}\n   ⚔️ VS ⚔️\n2️⃣ {p2[0]}"
-        await message.answer(text, reply_markup=builder.as_markup(), parse_mode="Markdown")
+        await bot.send_message(TOURNAMENT_CHANNEL_ID, text, reply_markup=builder.as_markup(), parse_mode="Markdown")
         
     if len(players) % 2 != 0:
         last = players[-1]
-        await message.answer(f"⭐ Bu turda raqibsiz keyingi bosqichga o'tuvchi (Free-win):\n📌 {last[0]}", parse_mode="Markdown")
+        free_text = f"⭐ Bu turda raqibsiz keyingi bosqichga o'tuvchi (Free-win):\n📌 {last[0]}"
+        await bot.send_message(TOURNAMENT_CHANNEL_ID, free_text, parse_mode="Markdown")
     
     cursor.execute("UPDATE settings SET value = ? WHERE key = 'current_round'", (str(round_num + 1),))
     conn.commit()
@@ -280,10 +284,11 @@ async def process_match_result(call: CallbackQuery):
         if active_left == 1:
             cursor.execute("SELECT username FROM players WHERE is_active = 1")
             champ = cursor.fetchone()[0]
+            await bot.send_message(TOURNAMENT_CHANNEL_ID, f"🏆 **TURNIR G'OLIBI (CHEMPION):** {champ} 👑\nTabriklaymiz!")
             await bot.send_message(ADMIN_ID, f"🏆 **TURNIR G'OLIBI (CHEMPION):** {champ} 👑\nTabriklaymiz!")
 
         await call.message.edit_text(f"{call.message.text}\n\n✅ **Natija saqlandi:** G'olib keyingi bosqichga o'tkazildi!", parse_mode="Markdown")
-        await call.answer("Natija saqlandi!")
+        await call.answer("Natija muvaffaqiyatli saqlandi!")
     except Exception as e:
         await call.answer(f"Xatolik: {e}", show_alert=True)
 
