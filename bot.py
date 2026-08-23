@@ -1,0 +1,328 @@
+import logging
+import random
+import sqlite3
+from aiogram import Bot, Dispatcher, F
+from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton
+from aiogram.filters import Command
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+# --- SOZLAMALAR ---
+TOKEN = "8668357270:AAEIWlNsYhfIKUsgHs7luacZQf3cg_Yc-HA"  # Tokeningizni yozing
+ADMIN_ID = 8451295149  # Sizning ID raqamingiz
+
+logging.basicConfig(level=logging.INFO)
+bot = Bot(token=TOKEN)
+dp = Dispatcher()
+
+# --- BAZA BILAN ISHLASH ---
+conn = sqlite3.connect("tournament_pro.db")
+cursor = conn.cursor()
+
+# O'yinchilar jadvali
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS players (
+    user_id INTEGER PRIMARY KEY,
+    username TEXT,
+    full_name TEXT,
+    is_active INTEGER DEFAULT 1,
+    wins INTEGER DEFAULT 0
+)
+""")
+
+# Sozlamalar jadvali
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT
+)
+""")
+cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('reg_status', 'open')")
+cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('current_round', '1')")
+conn.commit()
+
+
+# Tur nomini odam tushunadigan qilib chiqarish funksiyasi
+def get_round_name(player_count):
+    if player_count == 2:
+        return "🏆 FINAL"
+    elif player_count <= 4:
+        return "🔥 Yarim final"
+    elif player_count <= 8:
+        return "⚡ Chorak final"
+    else:
+        cursor.execute("SELECT value FROM settings WHERE key = 'current_round'")
+        r = cursor.fetchone()
+        return f"{r[0]}-tur" if r else "Tur"
+
+
+# --- /START BUYRUG'I ---
+@dp.message(Command("start"))
+async def cmd_start(message: Message):
+    await show_main_menu(message)
+
+
+async def show_main_menu(message: Message):
+    # Hozirgi faol o'yinchilar sonini bilib olamiz
+    cursor.execute("SELECT COUNT(*) FROM players WHERE is_active = 1")
+    res = cursor.fetchone()
+    active_count = res[0] if res else 0
+
+    # Tur nomini aniqlaymiz
+    if active_count > 2:
+        round_btn_text = f"🎲 {get_round_name(active_count)} juftliklarini tuzish"
+    elif active_count == 2:
+        round_btn_text = "🎲 FINAL juftligini tuzish"
+    else:
+        round_btn_text = "🎲 Juftliklarni tuzish"
+
+    buttons = [
+        [KeyboardButton(text="🎮 Turnirga ro'yxatdan o'tish"), KeyboardButton(text="📊 Mening holatim")]
+    ]
+    
+    if message.from_user.id == ADMIN_ID:
+        buttons.append([KeyboardButton(text="🔒 Ro'yxatdan o'tishni yopish"), KeyboardButton(text="🔓 Ro'yxatdan o'tishni ochish")])
+        buttons.append([KeyboardButton(text=round_btn_text), KeyboardButton(text="📢 Hammga xabar yuborish")])
+        buttons.append([KeyboardButton(text="📊 Turnir statistikasi"), KeyboardButton(text="🔄 Turnirni noldan boshlash")])
+        
+    keyboard = ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
+    await message.answer("🏆 eFootball Chempionat botiga xush kelibsiz! Kerakli bo'limni tanlang:", reply_markup=keyboard)
+
+
+# --- RO'YXATDAN O'TISH ---
+@dp.message(F.text == "🎮 Turnirga ro'yxatdan o'tish")
+async def register_player(message: Message):
+    user_id = message.from_user.id
+
+    cursor.execute("SELECT value FROM settings WHERE key = 'reg_status'")
+    reg_status = cursor.fetchone()[0]
+    
+    if reg_status == "closed" and message.from_user.id != ADMIN_ID:
+        await message.answer("❌ Kechirasiz, hozirda turnir uchun ro'yxatdan o'tish yopilgan!")
+        return
+
+    cursor.execute("SELECT * FROM players WHERE user_id = ?", (user_id,))
+    if cursor.fetchone():
+        await message.answer("Siz allaqachon ro'yxatdan o'tgansiz! ✅")
+    else:
+        username = message.from_user.username
+        if not username:
+            await message.answer("⚠️ Diqqat! Telegram profilingizda **username (@username)** mavjud emas. Ishtirok etish uchun username ochishingiz shart!", parse_mode="Markdown")
+            return
+            
+        full_name = message.from_user.full_name
+        cursor.execute("INSERT INTO players (user_id, username, full_name, is_active, wins) VALUES (?, ?, ?, 1, 0)",
+                       (user_id, f"@{username}", full_name))
+        conn.commit()
+        
+        cursor.execute("SELECT COUNT(*) FROM players")
+        count = cursor.fetchone()[0]
+        await message.answer(f"Muvaffaqiyatli ro'yxatdan o'tdingiz! 🎉\nSizning username: @{username}\nJami ro'yxatdagilar: {count} ta")
+
+
+# --- MENING HOLATIM ---
+@dp.message(F.text.in_(["📊 Mening holatim", "📊 Mening holatim"]))
+async def my_status(message: Message):
+    user_id = message.from_user.id
+    cursor.execute("SELECT is_active, wins, username FROM players WHERE user_id = ?", (user_id,))
+    player = cursor.fetchone()
+    
+    if not player:
+        await message.answer("Siz hali turnirga ro'yxatdan o'tmagansiz! ❌")
+    else:
+        status, wins, username = player
+        status_text = "🟢 O'yinda qolyapsiz (Faol)" if status == 1 else "🔴 O'yindan chiqqansiz (Mag'lub)"
+        
+        text = (
+            f"📊 **Sizning turnir ma'lumotlaringiz:**\n\n"
+            f"👤 Username: {username}\n"
+            f"🏆 G'alabalar soni: {wins} ta\n"
+            f"📌 Holatingiz: {status_text}"
+        )
+        await message.answer(text, parse_mode="Markdown")
+
+
+# ==========================================
+# ------------ ADMIN BOSHQARUVI --------------
+# ==========================================
+
+@dp.message(F.text == "🔒 Ro'yxatdan o'tishni yopish")
+async def close_registration(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    cursor.execute("UPDATE settings SET value = 'closed' WHERE key = 'reg_status'")
+    conn.commit()
+    await message.answer("🔒 Ro'yxatdan o'tish yopildi!")
+
+
+@dp.message(F.text == "🔓 Ro'yxatdan o'tishni ochish")
+async def open_registration(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    cursor.execute("UPDATE settings SET value = 'open' WHERE key = 'reg_status'")
+    conn.commit()
+    await message.answer("🔓 Ro'yxatdan o'tish ochildi!")
+
+
+# Dinamik ravishda tur juftliklarini tuzish tugmasi uchun filtr
+@dp.message(F.text.contains("juftliklarini tuzish"))
+async def make_pairs(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    
+    cursor.execute("SELECT value FROM settings WHERE key = 'current_round'")
+    round_num = int(cursor.fetchone()[0])
+    
+    cursor.execute("SELECT username, user_id FROM players WHERE is_active = 1")
+    players = list(cursor.fetchall())
+    
+    if len(players) < 2:
+        await message.answer(f"❌ O'yinda juftlik tuzish uchun faol ishtirokchilar yetarli emas! Qolganlar soni: {len(players)} ta")
+        return
+    
+    # Ro'yxatni avtomatik yopamiz
+    cursor.execute("UPDATE settings SET value = 'closed' WHERE key = 'reg_status'")
+    conn.commit()
+
+    round_title = get_round_name(len(players))
+    random.shuffle(players)
+    
+    await message.answer(f"⚔️ **{round_title} (Faol o'yinchilar: {len(players)} ta)** ⚔️", parse_mode="Markdown")
+    
+    # Juftliklarni chiqarish (Faqat username, ustiga bosib chatiga o'tish mumkin)
+    for i in range(0, len(players) - 1, 2):
+        p1 = players[i]     # (username, user_id)
+        p2 = players[i+1]
+        
+        builder = InlineKeyboardBuilder()
+        builder.row(
+            InlineKeyboardButton(text=f"🏆 G'olib: {p1[0]}", callback_data=f"win_{p1[1]}_lose_{p2[1]}"),
+            InlineKeyboardButton(text=f"🏆 G'olib: {p2[0]}", callback_data=f"win_{p2[1]}_lose_{p1[1]}")
+        )
+        
+        text = f"🔸 **O'yin:**\n1️⃣ {p1[0]}\nVS\n2️⃣ {p2[0]}"
+        await message.answer(text, reply_markup=builder.as_markup(), parse_mode="Markdown")
+        
+    if len(players) % 2 != 0:
+        last = players[-1]
+        await message.answer(f"⭐ Bu turda raqibsiz keyingi bosqichga o'tuvchi (Free-win):\n📌 {last[0]}", parse_mode="Markdown")
+    
+    # Tur raqamini 1 taga oshiramiz va menyuni yangilash uchun xabar beramiz
+    cursor.execute("UPDATE settings SET value = ? WHERE key = 'current_round'", (str(round_num + 1),))
+    conn.commit()
+    
+    # Menyu tugmalarini yangi turga moslab chiqarish
+    await show_main_menu(message)
+
+
+# G'olib tugmasi bosilganda
+@dp.callback_query(F.data.startswith("win_"))
+async def process_match_result(call: CallbackQuery):
+    if call.from_user.id != ADMIN_ID:
+        await call.answer("Bu tugma faqat admin uchun! ❌", show_alert=True)
+        return
+    
+    try:
+        data_parts = call.data.split("_")
+        winner_id = int(data_parts[1])
+        loser_id = int(data_parts[3])
+        
+        cursor.execute("UPDATE players SET is_active = 1, wins = wins + 1 WHERE user_id = ?", (winner_id,))
+        cursor.execute("UPDATE players SET is_active = 0 WHERE user_id = ?", (loser_id,))
+        conn.commit()
+        
+        try:
+            await bot.send_message(winner_id, "🎉 Tabriklaymiz! Siz o'yinda g'alaba qozonib, keyingi bosqichga chiqdingiz! 🚀")
+        except Exception:
+            pass
+            
+        try:
+            await bot.send_message(loser_id, "❌ Afsuski, bu o'yinda mag'lub bo'ldingiz va o'yindan chiqdingiz. Keyingi chempionatlarda ko'rishguncha! 🤝")
+        except Exception:
+            pass
+            
+        # Agar final bo'lsa va 1 kishi yutsa, maxsus chempion xabarini berish mumkin
+        cursor.execute("SELECT COUNT(*) FROM players WHERE is_active = 1")
+        active_left = cursor.fetchone()[0]
+        if active_left == 1:
+            cursor.execute("SELECT username FROM players WHERE is_active = 1")
+            champ = cursor.fetchone()[0]
+            await bot.send_message(ADMIN_ID, f"🏆 **TURNIR G'OLIBI (CHEMPION):** {champ} 👑\nTabriklaymiz!")
+
+        await call.message.edit_text(f"{call.message.text}\n\n✅ **Natija saqlandi:** G'olib keyingi bosqichga o'tkazildi!", parse_mode="Markdown")
+        await call.answer("Natija saqlandi!")
+    except Exception as e:
+        await call.answer(f"Xatolik: {e}", show_alert=True)
+
+
+@dp.message(F.text == "📊 Turnir statistikasi")
+async def admin_stats(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+        
+    cursor.execute("SELECT value FROM settings WHERE key = 'current_round'")
+    round_num = int(cursor.fetchone()[0]) - 1
+    
+    cursor.execute("SELECT COUNT(*) FROM players WHERE is_active = 1")
+    active = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM players")
+    total = cursor.fetchone()[0]
+    
+    cursor.execute("SELECT username, wins FROM players ORDER BY wins DESC LIMIT 5")
+    top_players = cursor.fetchall()
+    
+    top_text = "\n".join([f"• {p[0]} — {p[1]} ta g'alaba" for p in top_players]) if top_players else "Hozircha yo'q"
+    
+    text = (
+        f"📈 **Turnir statistikasi:**\n\n"
+        f"🔄 Hozirgi bosqich: {round_num}-tur ortda qoldi\n"
+        f"👥 Jami ro'yxatdan o'tganlar: {total} ta\n"
+        f"🟢 Hozirda o'yinda qolganlar: {active} ta\n\n"
+        f"🏆 **Eng faol o'yinchilar:**\n{top_text}"
+    )
+    await message.answer(text, parse_mode="Markdown")
+
+
+@dp.message(F.text == "📢 Hammga xabar yuborish")
+async def ask_broadcast(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    await message.answer("Barcha ishtirokchilarga yubormoqchi bo'lgan xabaringizni yuboring (boshiga `/bc ` qo'shib yozing):\n\nMasalan: `/bc E'lon: O'yinlar boshlandi!`")
+
+@dp.message(Command("bc"))
+async def broadcast_message(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    
+    text = message.text.replace("/bc", "").strip()
+    cursor.execute("SELECT user_id FROM players")
+    users = cursor.fetchall()
+    
+    success = 0
+    for u in users:
+        try:
+            await bot.send_message(u[0], f"📢 **Turnir e'loni:**\n\n{text}", parse_mode="Markdown")
+            success += 1
+        except Exception:
+            pass
+            
+    await message.answer(f"Xabar {success} ta ishtirokchiga muvaffaqiyatli yuborildi! 🚀")
+
+
+@dp.message(F.text == "🔄 Turnirni noldan boshlash")
+async def reset_all(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    cursor.execute("DELETE FROM players")
+    cursor.execute("UPDATE settings SET value = 'open' WHERE key = 'reg_status'")
+    cursor.execute("UPDATE settings SET value = '1' WHERE key = 'current_round'")
+    conn.commit()
+    await show_main_menu(message)
+    await message.answer("Barcha ma'lumotlar tozalandi, turnir noldan boshlashga tayyor! ♻️")
+
+
+# Botni ishga tushirish
+if __name__ == '__main__':
+    import asyncio
+    async def main():
+        await dp.start_polling(bot)
+    asyncio.run(main())
