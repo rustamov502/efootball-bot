@@ -1,3 +1,5 @@
+from aiohttp import web
+import asyncio
 import logging
 import random
 import sqlite3
@@ -5,9 +7,10 @@ from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+import os
 
 # --- SOZLAMALAR ---
-TOKEN = "8668357270:AAEIWlNsYhfIKUsgHs7luacZQf3cg_Yc-HA"  # Tokeningizni yozing
+TOKEN = "8668357270:AAEIWlNsYhfIKUsgHs7luacZQf3cg_Yc-HA"  # Tokeningiz
 ADMIN_ID = 8451295149  # Sizning ID raqamingiz
 
 logging.basicConfig(level=logging.INFO)
@@ -62,12 +65,10 @@ async def cmd_start(message: Message):
 
 
 async def show_main_menu(message: Message):
-    # Hozirgi faol o'yinchilar sonini bilib olamiz
     cursor.execute("SELECT COUNT(*) FROM players WHERE is_active = 1")
     res = cursor.fetchone()
     active_count = res[0] if res else 0
 
-    # Tur nomini aniqlaymiz
     if active_count > 2:
         round_btn_text = f"🎲 {get_round_name(active_count)} juftliklarini tuzish"
     elif active_count == 2:
@@ -163,7 +164,6 @@ async def open_registration(message: Message):
     await message.answer("🔓 Ro'yxatdan o'tish ochildi!")
 
 
-# Dinamik ravishda tur juftliklarini tuzish tugmasi uchun filtr
 @dp.message(F.text.contains("juftliklarini tuzish"))
 async def make_pairs(message: Message):
     if message.from_user.id != ADMIN_ID:
@@ -179,7 +179,6 @@ async def make_pairs(message: Message):
         await message.answer(f"❌ O'yinda juftlik tuzish uchun faol ishtirokchilar yetarli emas! Qolganlar soni: {len(players)} ta")
         return
     
-    # Ro'yxatni avtomatik yopamiz
     cursor.execute("UPDATE settings SET value = 'closed' WHERE key = 'reg_status'")
     conn.commit()
 
@@ -188,9 +187,8 @@ async def make_pairs(message: Message):
     
     await message.answer(f"⚔️ **{round_title} (Faol o'yinchilar: {len(players)} ta)** ⚔️", parse_mode="Markdown")
     
-    # Juftliklarni chiqarish (Faqat username, ustiga bosib chatiga o'tish mumkin)
     for i in range(0, len(players) - 1, 2):
-        p1 = players[i]     # (username, user_id)
+        p1 = players[i]    
         p2 = players[i+1]
         
         builder = InlineKeyboardBuilder()
@@ -206,15 +204,11 @@ async def make_pairs(message: Message):
         last = players[-1]
         await message.answer(f"⭐ Bu turda raqibsiz keyingi bosqichga o'tuvchi (Free-win):\n📌 {last[0]}", parse_mode="Markdown")
     
-    # Tur raqamini 1 taga oshiramiz va menyuni yangilash uchun xabar beramiz
     cursor.execute("UPDATE settings SET value = ? WHERE key = 'current_round'", (str(round_num + 1),))
     conn.commit()
-    
-    # Menyu tugmalarini yangi turga moslab chiqarish
     await show_main_menu(message)
 
 
-# G'olib tugmasi bosilganda
 @dp.callback_query(F.data.startswith("win_"))
 async def process_match_result(call: CallbackQuery):
     if call.from_user.id != ADMIN_ID:
@@ -240,7 +234,6 @@ async def process_match_result(call: CallbackQuery):
         except Exception:
             pass
             
-        # Agar final bo'lsa va 1 kishi yutsa, maxsus chempion xabarini berish mumkin
         cursor.execute("SELECT COUNT(*) FROM players WHERE is_active = 1")
         active_left = cursor.fetchone()[0]
         if active_left == 1:
@@ -320,9 +313,27 @@ async def reset_all(message: Message):
     await message.answer("Barcha ma'lumotlar tozalandi, turnir noldan boshlashga tayyor! ♻️")
 
 
-# Botni ishga tushirish
+# --- RENDER UCHUN MINI VEB-SERVER QISMI ---
+routes = web.RouteTableDef()
+
+@routes.get("/")
+async def handle_ping(request):
+    return web.Response(text="Bot is running!")
+
+async def web_server():
+    app = web.Application()
+    app.add_routes(routes)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = int(os.environ.get("PORT", 10000))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+
+
+# Botni va veb-serverni birgalikda ishga tushirish
 if __name__ == '__main__':
-    import asyncio
     async def main():
+        await web_server()  # Render port talabini qondirish uchun
         await dp.start_polling(bot)
+
     asyncio.run(main())
