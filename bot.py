@@ -18,10 +18,10 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
 # --- BAZA BILAN ISHLASH ---
-conn = sqlite3.connect("tournament_pro.db")
+conn = sqlite3.connect("tournament_pro.db", check_same_thread=False)
 cursor = conn.cursor()
 
-# O'yinchilar jadvali
+# O'yinchilar jadvali (wins ustuni bilan)
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS players (
     user_id INTEGER PRIMARY KEY,
@@ -44,7 +44,7 @@ cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('current_rou
 conn.commit()
 
 
-# Tur nomini odam tushunadigan qilib chiqarish funksiyasi
+# Tur nomini chiqarish
 def get_round_name(player_count):
     if player_count == 2:
         return "🏆 FINAL"
@@ -121,7 +121,7 @@ async def register_player(message: Message):
 
 
 # --- MENING HOLATIM ---
-@dp.message(F.text.in_(["📊 Mening holatim", "📊 Mening holatim"]))
+@dp.message(F.text == "📊 Mening holatim")
 async def my_status(message: Message):
     user_id = message.from_user.id
     cursor.execute("SELECT is_active, wins, username FROM players WHERE user_id = ?", (user_id,))
@@ -220,7 +220,7 @@ async def process_match_result(call: CallbackQuery):
         winner_id = int(data_parts[1])
         loser_id = int(data_parts[3])
         
-        cursor.execute("UPDATE players SET is_active = 1, wins = wins + 1 WHERE user_id = ?", (winner_id,))
+        cursor.execute("UPDATE players SET wins = wins + 1 WHERE user_id = ?", (winner_id,))
         cursor.execute("UPDATE players SET is_active = 0 WHERE user_id = ?", (loser_id,))
         conn.commit()
         
@@ -240,6 +240,7 @@ async def process_match_result(call: CallbackQuery):
             cursor.execute("SELECT username FROM players WHERE is_active = 1")
             champ = cursor.fetchone()[0]
             await bot.send_message(ADMIN_ID, f"🏆 **TURNIR G'OLIBI (CHEMPION):** {champ} 👑\nTabriklaymiz!")
+            await bot.send_message(champ_id := cursor.execute("SELECT user_id FROM players WHERE is_active = 1").fetchone()[0], "👑 Siz turnir g'olibi bo'ldingiz! Tabriklaymiz! 🎉")
 
         await call.message.edit_text(f"{call.message.text}\n\n✅ **Natija saqlandi:** G'olib keyingi bosqichga o'tkazildi!", parse_mode="Markdown")
         await call.answer("Natija saqlandi!")
@@ -253,7 +254,8 @@ async def admin_stats(message: Message):
         return
         
     cursor.execute("SELECT value FROM settings WHERE key = 'current_round'")
-    round_num = int(cursor.fetchone()[0]) - 1
+    r_val = cursor.fetchone()
+    round_num = int(r_val[0]) - 1 if r_val else 1
     
     cursor.execute("SELECT COUNT(*) FROM players WHERE is_active = 1")
     active = cursor.fetchone()[0]
@@ -267,7 +269,7 @@ async def admin_stats(message: Message):
     
     text = (
         f"📈 **Turnir statistikasi:**\n\n"
-        f"🔄 Hozirgi bosqich: {round_num}-tur ortda qoldi\n"
+        f"🔄 Hozirgi bosqich: {round_num}-tur\n"
         f"👥 Jami ro'yxatdan o'tganlar: {total} ta\n"
         f"🟢 Hozirda o'yinda qolganlar: {active} ta\n\n"
         f"🏆 **Eng faol o'yinchilar:**\n{top_text}"
@@ -330,10 +332,9 @@ async def web_server():
     await site.start()
 
 
-# Botni va veb-serverni birgalikda ishga tushirish
 if __name__ == '__main__':
     async def main():
-        await web_server()  # Render port talabini qondirish uchun
+        await web_server()
         await dp.start_polling(bot)
 
     asyncio.run(main())
