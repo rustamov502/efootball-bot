@@ -10,8 +10,8 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 import os
 
 # --- SOZLAMALAR ---
-TOKEN = "8668357270:AAEIWlNsYhfIKUsgHs7luacZQf3cg_Yc-HA"  # Tokeningiz
-ADMIN_ID = 8451295149  # Sizning ID raqamingiz
+TOKEN = "8668357270:AAEIWlNsYhfIKUsgHs7luacZQf3cg_Yc-HA"
+ADMIN_ID = 8451295149
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=TOKEN)
@@ -21,7 +21,6 @@ dp = Dispatcher()
 conn = sqlite3.connect("tournament_pro.db", check_same_thread=False)
 cursor = conn.cursor()
 
-# O'yinchilar jadvali (wins ustuni bilan)
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS players (
     user_id INTEGER PRIMARY KEY,
@@ -32,7 +31,6 @@ CREATE TABLE IF NOT EXISTS players (
 )
 """)
 
-# Sozlamalar jadvali
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
@@ -44,7 +42,6 @@ cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('current_rou
 conn.commit()
 
 
-# Tur nomini chiqarish
 def get_round_name(player_count):
     if player_count == 2:
         return "🏆 FINAL"
@@ -58,7 +55,6 @@ def get_round_name(player_count):
         return f"{r[0]}-tur" if r else "Tur"
 
 
-# --- /START BUYRUG'I ---
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
     await show_main_menu(message)
@@ -89,7 +85,6 @@ async def show_main_menu(message: Message):
     await message.answer("🏆 eFootball Chempionat botiga xush kelibsiz! Kerakli bo'limni tanlang:", reply_markup=keyboard)
 
 
-# --- RO'YXATDAN O'TISH ---
 @dp.message(F.text == "🎮 Turnirga ro'yxatdan o'tish")
 async def register_player(message: Message):
     user_id = message.from_user.id
@@ -120,7 +115,6 @@ async def register_player(message: Message):
         await message.answer(f"Muvaffaqiyatli ro'yxatdan o'tdingiz! 🎉\nSizning username: @{username}\nJami ro'yxatdagilar: {count} ta")
 
 
-# --- MENING HOLATIM ---
 @dp.message(F.text == "📊 Mening holatim")
 async def my_status(message: Message):
     user_id = message.from_user.id
@@ -141,10 +135,6 @@ async def my_status(message: Message):
         )
         await message.answer(text, parse_mode="Markdown")
 
-
-# ==========================================
-# ------------ ADMIN BOSHQARUVI --------------
-# ==========================================
 
 @dp.message(F.text == "🔒 Ro'yxatdan o'tishni yopish")
 async def close_registration(message: Message):
@@ -240,7 +230,6 @@ async def process_match_result(call: CallbackQuery):
             cursor.execute("SELECT username FROM players WHERE is_active = 1")
             champ = cursor.fetchone()[0]
             await bot.send_message(ADMIN_ID, f"🏆 **TURNIR G'OLIBI (CHEMPION):** {champ} 👑\nTabriklaymiz!")
-            await bot.send_message(champ_id := cursor.execute("SELECT user_id FROM players WHERE is_active = 1").fetchone()[0], "👑 Siz turnir g'olibi bo'ldingiz! Tabriklaymiz! 🎉")
 
         await call.message.edit_text(f"{call.message.text}\n\n✅ **Natija saqlandi:** G'olib keyingi bosqichga o'tkazildi!", parse_mode="Markdown")
         await call.answer("Natija saqlandi!")
@@ -282,6 +271,7 @@ async def ask_broadcast(message: Message):
     if message.from_user.id != ADMIN_ID:
         return
     await message.answer("Barcha ishtirokchilarga yubormoqchi bo'lgan xabaringizni yuboring (boshiga `/bc ` qo'shib yozing):\n\nMasalan: `/bc E'lon: O'yinlar boshlandi!`")
+
 
 @dp.message(Command("bc"))
 async def broadcast_message(message: Message):
