@@ -62,7 +62,7 @@ async def show_main_menu(message: Message):
     await message.answer("🏆 eFootball Chempionat botiga xush kelibsiz! Kerakli bo'limni tanlang:", reply_markup=keyboard)
 
 
-# --- ISHTIROKCHILAR RO'YXATI ---
+# --- ISHTIROKCHILAR RO'YXATI (USERNAME BILAN) ---
 @dp.message(F.text == "📋 Ishtirokchilar ro'yxati")
 async def show_participants(message: Message):
     cursor.execute("SELECT username, is_active, wins FROM players")
@@ -150,7 +150,7 @@ async def open_registration(message: Message):
     await message.answer("🔓 Ro'yxatdan o'tish ochildi!")
 
 
-# --- JUFTLIKLARNI TUZISH ---
+# --- JUFTLIKLARNI TUZISH VA USERLARNI CHIQARISH ---
 @dp.message(F.text == "🎲 Juftliklarni tuzish")
 async def make_pairs(message: Message):
     if message.from_user.id != ADMIN_ID:
@@ -175,8 +175,8 @@ async def make_pairs(message: Message):
     await message.answer(f"⚔️ **{round_title} (Faol o'yinchilar: {len(players)} ta)** ⚔️", parse_mode="Markdown")
     
     for i in range(0, len(players) - 1, 2):
-        p1 = players[i]    
-        p2 = players[i+1]
+        p1 = players[i]    # p1[0] -> username, p1[1] -> user_id
+        p2 = players[i+1]  # p2[0] -> username, p2[1] -> user_id
         
         builder = InlineKeyboardBuilder()
         builder.row(
@@ -184,7 +184,7 @@ async def make_pairs(message: Message):
             InlineKeyboardButton(text=f"🏆 G'olib: {p2[0]}", callback_data=f"win_{p2[1]}_lose_{p1[1]}")
         )
         
-        text = f"🔸 **O'yin:**\n1️⃣ {p1[0]}\nVS\n2️⃣ {p2[0]}"
+        text = f"🔸 **O'yin juftligi:**\n1️⃣ {p1[0]}\n   ⚔️ VS ⚔️\n2️⃣ {p2[0]}"
         await message.answer(text, reply_markup=builder.as_markup(), parse_mode="Markdown")
         
     if len(players) % 2 != 0:
