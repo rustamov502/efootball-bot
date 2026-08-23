@@ -42,36 +42,12 @@ cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('current_rou
 conn.commit()
 
 
-def get_round_name(player_count):
-    if player_count <= 2:
-        return "🏆 FINAL"
-    elif player_count <= 4:
-        return "🔥 Yarim final"
-    elif player_count <= 8:
-        return "⚡ Chorak final"
-    else:
-        cursor.execute("SELECT value FROM settings WHERE key = 'current_round'")
-        r = cursor.fetchone()
-        return f"{r[0]}-tur" if r else "Tur"
-
-
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
     await show_main_menu(message)
 
 
 async def show_main_menu(message: Message):
-    cursor.execute("SELECT COUNT(*) FROM players WHERE is_active = 1")
-    res = cursor.fetchone()
-    active_count = res[0] if res else 0
-
-    if active_count == 2:
-        round_btn_text = "🎲 FINAL juftligini tuzish"
-    elif active_count > 2:
-        round_btn_text = f"🎲 {get_round_name(active_count)} juftliklarini tuzish"
-    else:
-        round_btn_text = "🎲 Juftliklarni tuzish"
-
     buttons = [
         [KeyboardButton(text="🎮 Turnirga ro'yxatdan o'tish"), KeyboardButton(text="📊 Mening holatim")],
         [KeyboardButton(text="📋 Ishtirokchilar ro'yxati")]
@@ -79,7 +55,7 @@ async def show_main_menu(message: Message):
     
     if message.from_user.id == ADMIN_ID:
         buttons.append([KeyboardButton(text="🔒 Ro'yxatdan o'tishni yopish"), KeyboardButton(text="🔓 Ro'yxatdan o'tishni ochish")])
-        buttons.append([KeyboardButton(text=round_btn_text), KeyboardButton(text="📢 Hammga xabar yuborish")])
+        buttons.append([KeyboardButton(text="🎲 Juftliklarni tuzish"), KeyboardButton(text="📢 Hammga xabar yuborish")])
         buttons.append([KeyboardButton(text="📊 Turnir statistikasi"), KeyboardButton(text="🔄 Turnirni noldan boshlash")])
         
     keyboard = ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
@@ -174,7 +150,8 @@ async def open_registration(message: Message):
     await message.answer("🔓 Ro'yxatdan o'tish ochildi!")
 
 
-@dp.message(F.text.contains("juftliklarini tuzish") | F.text.contains("FINAL juftligini tuzish"))
+# --- JUFTLIKLARNI TUZISH ---
+@dp.message(F.text == "🎲 Juftliklarni tuzish")
 async def make_pairs(message: Message):
     if message.from_user.id != ADMIN_ID:
         return
@@ -192,7 +169,7 @@ async def make_pairs(message: Message):
     cursor.execute("UPDATE settings SET value = 'closed' WHERE key = 'reg_status'")
     conn.commit()
 
-    round_title = get_round_name(len(players))
+    round_title = "🏆 FINAL" if len(players) == 2 else f"🔥 {round_num}-tur"
     random.shuffle(players)
     
     await message.answer(f"⚔️ **{round_title} (Faol o'yinchilar: {len(players)} ta)** ⚔️", parse_mode="Markdown")
@@ -216,7 +193,6 @@ async def make_pairs(message: Message):
     
     cursor.execute("UPDATE settings SET value = ? WHERE key = 'current_round'", (str(round_num + 1),))
     conn.commit()
-    await show_main_menu(message)
 
 
 @dp.callback_query(F.data.startswith("win_"))
