@@ -11,7 +11,7 @@ import os
 
 # --- SOZLAMALAR ---
 # Tokenni to'g'ridan-to'g'ri yozish o'rniga Render muhitidan olinadi
-TOKEN = "8668357270:AAHOLqv3WnGcnjNobLpJG8"
+TOKEN = os.getenv("8668357270:AAHOLqv3WnGcnjNobLpJG8Ci0YUNi_OZhpQ")
 ADMIN_ID = 8451295149
 CHANNEL_USERNAME = "@rustamov_tets"  # Majburiy obuna kanali
 CHANNEL_LINK = "https://t.me/rustamov_tets"   # Majburiy obuna havolasi
