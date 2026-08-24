@@ -10,13 +10,14 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 import os
 
 # --- SOZLAMALAR ---
-TOKEN = os.getenv"8668357270:AAEwnRJmwbc9UDtlApZLrkAPxzLYZOot1Z0"
+# Tokenni to'g'ridan-to'g'ri yozish o'rniga Render muhitidan olinadi
+TOKEN = os.getenv("8668357270:AAHOLqv3WnGcnjNobLpJG8")
 ADMIN_ID = 8451295149
 CHANNEL_USERNAME = "@rustamov_tets"  # Majburiy obuna kanali
 CHANNEL_LINK = "https://t.me/rustamov_tets"   # Majburiy obuna havolasi
 
 # Juftliklar tashlanadigan kanal (hozircha o'sha kanalingiz turibdi)
-TOURNAMENT_CHANNEL_ID = "@rustamov_tets" 
+TOURNAMENT_CHANNEL_ID = "@rustamov_tets"  
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=TOKEN)
