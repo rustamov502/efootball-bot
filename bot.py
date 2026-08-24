@@ -10,7 +10,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 import os
 
 # --- SOZLAMALAR ---
-TOKEN = "8668357270:AAEIWlNsYhfIKUsgHs7luacZQf3cg_Yc-HA"
+TOKEN = os.getenv"8668357270:AAEwnRJmwbc9UDtlApZLrkAPxzLYZOot1Z0"
 ADMIN_ID = 8451295149
 CHANNEL_USERNAME = "@rustamov_tets"  # Majburiy obuna kanali
 CHANNEL_LINK = "https://t.me/rustamov_tets"   # Majburiy obuna havolasi
