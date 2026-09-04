@@ -2,7 +2,7 @@ import asyncio
 import logging
 import random
 import sqlite3
-from aiogram import Bot, Dispatcher, F
+from aiogram import Bot, Dispatcher, 
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
